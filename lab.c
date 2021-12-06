@@ -3,12 +3,12 @@
 #include <string.h>
 #include <math.h>
 
-struct Dominio
+struct Dominios
 {
     int* Dom;
     int cantidad;
 
-};
+}Dominio;
 
 int leer_examenes(char file []){  //lee los archivos .exm
     int n = 0;
@@ -93,12 +93,12 @@ int **crear_matriz(int cant_examenes, char file [], int* a){
 
 
 
-void leer_dominios(struct Dominio* D, int c, int E){
+void leer_dominios(struct Dominios* D, int c, int E){
 
     for (int exm=0; exm<E; exm++){
         printf("\n------------------------------- \n");
-        printf("Para el examen %d \n", exm+1);
-        for (int slot=0; slot<c; slot++){
+        printf("El examen %d tiene dominio de tmbo %d que es:  \n", exm+1, D[exm].cantidad);
+        for (int slot=0; slot<D[exm].cantidad; slot++){
             printf("%d \t", D[exm].Dom[slot]);
         }
     }
@@ -106,21 +106,28 @@ void leer_dominios(struct Dominio* D, int c, int E){
 }
 
 
-struct Dominio* Gen_Dom(int cant_timeslots, int cant_examenes){
-    struct Dominio* Dom = (struct Dominio*)malloc(cant_examenes*sizeof(struct Dominio*));
+struct Dominios* Gen_Dom(int cant_timeslots, int cant_examenes){
+    struct Dominios* Dom = malloc(cant_examenes* sizeof(Dominio));
     for (int i =0; i < cant_examenes; i++){
         Dom[i].Dom = (int*)malloc(cant_timeslots*sizeof(int*));
         for (int j=0; j<cant_timeslots; j++){
             Dom[i].Dom[j]=j+1;
         }
-        printf("%d \t", Dom[0].Dom[0]);
         Dom[i].cantidad = cant_timeslots;
     }
-    printf("\n %d", Dom[0].Dom[0]);
     return Dom;
 }
 
-int * inicializar_sol(int E){
+void reset_domains(struct Dominios* D, int E, int i, int cant_timeslots){
+    for(int in = i+1; in <E; in++){
+        for (int j =0; j<cant_timeslots; j++){
+            D[in].Dom[j]=j+1;
+        }
+        D[in].cantidad= cant_timeslots;
+    }
+}
+
+int* inicializar_sol(int E){
     int *sol = (int *) malloc(E*sizeof(int));
     for (int i=0; i<E; i++){
         sol[i] = 0;
@@ -130,21 +137,64 @@ int * inicializar_sol(int E){
 
 
 
-void elimiar_elemento_dominio(struct Dominio* D, int pos, int ID_exm){
-    for (int i=pos; i<D[ID_exm-1].cantidad-1; i++){
-        D[ID_exm-1].Dom[i] = D[ID_exm-1].Dom[i+1];
+int pop(struct Dominios* D, int pos){
+    int b = D->Dom[pos];
+    for (int i=pos; i<D->cantidad-1; i++){
+        D->Dom[i] = D->Dom[i+1];
     }
-    D->cantidad--;
+    D->cantidad --;
+    printf("%d", D->cantidad);
+    return b;
+}
+
+void delete(struct Dominios* D, int pos){
+    for (int i=pos; i<D->cantidad-1; i++){
+        D->Dom[i] = D->Dom[i+1];
+    }
+    D->cantidad --;
+    printf("%d", D->cantidad);
 }
 
 
-void free_memory(int **C, struct Dominio* D, int E){
+void free_memory(int **C, struct Dominios* D, int E){
     for (int n=0; n<E; n++){
         free(C[n]);
+        free(D[n].Dom);
         
     }
     free(C);
     free(D);
+}
+
+
+int* ForwardChecking (int** M_Confl, struct Dominios* Dom, int* orden){
+    return 0;
+}
+
+int SelectValueFC(int i, int E, struct Dominios* Dom, int** M_Conflic, int c){
+    int select=0;
+    while(Dom[i].cantidad != 0){
+        select = pop(&Dom[i], 0);
+        int empty_dom =0;                   // boolean 0 == False
+        for (int k = i+1; k < E; k++){
+            for(int posi=0; posi<Dom[k].cantidad; posi++){
+                if (M_Conflic[i][k]==1 && select == Dom[k].Dom[posi]){
+                    delete(&Dom[k], posi);
+                };
+            }
+            if (Dom[k].cantidad == 0){
+                empty_dom=1;
+            }
+        }
+        if (empty_dom == 1){
+            reset_domains(Dom, E, i, c);
+        }
+        else{
+            return select;
+        }
+        
+    }
+    return 0;
 }
 
 int main (){
@@ -156,22 +206,20 @@ int main (){
     int **C = crear_matriz(E, name_Archivo, &a);
     int b = E;
     int c;
-    struct Dominio *Dominios = Gen_Dom(5,E);
-    printf("%d \n",Dominios[0].Dom[0]);
-    leer_dominios(Dominios, 5, E);
-    //elimiar_elemento_dominio(Dominios, 0,0);
-    //leer_dominios(Dominios, 10, 5);
-    /*while (a != b)
-    {
+    struct Dominios *Dominios = Gen_Dom(5,10);
+    pop(&Dominios[0], 0);
+    leer_dominios(Dominios, 5, 10);
+    int orden;
+    /*while (a != b){
         c = floor((a+b)/2);
         int **Dominios = Gen_Dom(c,E);
         int* sol = FC(C, Dominios, orden);
-        if sizeof(sol) != 0{
+        if (sizeof(sol) != 0){
             b = c-1;
         }else{
             a = c+1;
         }
-    } */
+    }*/
     free_memory(C, Dominios, E);
     return 0 ; 
 }
