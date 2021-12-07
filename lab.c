@@ -10,6 +10,18 @@ struct Dominios
 
 }Dominio;
 
+
+void imprimir_matriz(int** M, int E){
+    for(int i=0; i<E; i++){
+        for(int j=0; j<E; j++){
+            printf("%d\t",M[i][j]);
+        }
+        printf("\n");
+    }
+}
+
+
+
 int leer_examenes(char file []){  //lee los archivos .exm
     int n = 0;
     char buffer [100];
@@ -60,30 +72,68 @@ int **crear_matriz(int cant_examenes, char file [], int* a){
     char id_alumno_prev [5] = "";
     char id_alumno_act [5];
     int id_examen_act;
-    int id_examen_prev =-1;
-    int conf_alumnos=0;
+    int conf_alumnos=1;
     int max_a=0;
+    int array[cant_examenes];
+    for (int n=0; n<cant_examenes;n++){
+        array[n]=0;
+    }
     while (feof(fp) ==0){
         fscanf(fp, "%s %d", id_alumno_act, &id_examen_act);
-        if (strcmp(id_alumno_act, id_alumno_prev) == 0){
-            Matriz[id_examen_prev-1][id_examen_act-1] =1;
-            Matriz[id_examen_act-1][id_examen_prev-1] =1;
-            conf_alumnos++;
+        
+      
+        if (strcmp(id_alumno_act, id_alumno_prev) == 0 || strcmp("", id_alumno_prev) == 0){
+            if(strcmp("", id_alumno_prev) != 0){
+                conf_alumnos++;
+            }
+            
+            strcpy(id_alumno_prev, id_alumno_act); 
+            array[id_examen_act-1]=1;
+            
+            
 
         }
+        
         else{
-            //printf("Alumno %s tiene %d conflictos \n ----------------------------- \n", id_alumno_act, conf_alumnos);
+            
+            for(int n =0; n<cant_examenes; n++){
+                if (array[n]==1){
+                    for(int q=n+1; q<cant_examenes; q++){
+                    if(array[q]==1){
+                        Matriz[n][q]=1;
+                        Matriz[q][n]=1;
+                    }
+                    
+                }
+                }
+            }
+            for (int n=0; n<cant_examenes;n++){
+                array[n]=0;
+             }
+            array[id_examen_act-1]=1;    
             strcpy(id_alumno_prev, id_alumno_act); 
             if (max_a<conf_alumnos){
                 max_a= conf_alumnos;
                 
             }
-            conf_alumnos= 0;
+            conf_alumnos= 1;
         }
-        id_examen_prev = id_examen_act;
+        
 
         
-    };
+    }
+    for(int n =0; n<cant_examenes; n++){
+                if (array[n]==1){
+                    for(int q=n+1; q<cant_examenes; q++){
+                    if(array[q]==1){
+                        Matriz[n][q]=1;
+                        Matriz[q][n]=1;
+                    }
+                    
+                }
+                }
+            }
+
     fclose(fp);
     *a = max_a;
     printf("El alumno con más examenes tiene: %d \n", max_a);
@@ -118,12 +168,16 @@ struct Dominios* Gen_Dom(int cant_timeslots, int cant_examenes){
     return Dom;
 }
 
-void reset_domains(struct Dominios* D, int E, int i, int cant_timeslots){
-    for(int in = i+1; in <E; in++){
-        for (int j =0; j<cant_timeslots; j++){
-            D[in].Dom[j]=j+1;
+void reset_domains(int** Matriz_c,struct Dominios* D, int E, int i, int* orden, int del){
+    for(int k = i+1; k <E; k++){
+        if(Matriz_c[orden[i]][orden[k]]==1){
+            for (int j =D[orden[i]].cantidad-1; del-1<j; j--){
+                D[orden[k]].Dom[j+1]=D[orden[k]].Dom[j];
+            
         }
-        D[in].cantidad= cant_timeslots;
+        D[orden[k]].cantidad++;
+        }
+        
     }
 }
 
@@ -143,7 +197,6 @@ int pop(struct Dominios* D, int pos){
         D->Dom[i] = D->Dom[i+1];
     }
     D->cantidad --;
-    printf("%d", D->cantidad);
     return b;
 }
 
@@ -152,42 +205,42 @@ void delete(struct Dominios* D, int pos){
         D->Dom[i] = D->Dom[i+1];
     }
     D->cantidad --;
-    printf("%d", D->cantidad);
 }
 
 
 void free_memory(int **C, struct Dominios* D, int E){
     for (int n=0; n<E; n++){
         free(C[n]);
-        free(D[n].Dom);
         
     }
     free(C);
     free(D);
 }
 
-
-int* ForwardChecking (int** M_Confl, struct Dominios* Dom, int* orden){
-    return 0;
-}
-
-int SelectValueFC(int i, int E, struct Dominios* Dom, int** M_Conflic, int c){
+int SelectValueFC(int i, int E, struct Dominios* Dom, int** M_Conflic, int c, int* orden, int* check){
     int select=0;
+    int empty_dom;
     while(Dom[i].cantidad != 0){
         select = pop(&Dom[i], 0);
-        int empty_dom =0;                   // boolean 0 == False
+        empty_dom =0;                   // boolean 0 == False
         for (int k = i+1; k < E; k++){
-            for(int posi=0; posi<Dom[k].cantidad; posi++){
-                if (M_Conflic[i][k]==1 && select == Dom[k].Dom[posi]){
-                    delete(&Dom[k], posi);
+            for(int posi=0; posi<Dom[orden[k]].cantidad; posi++){
+                if (M_Conflic[orden[i]][orden[k]]==1){
+                    *check=*check+1;
+                    if (select == Dom[orden[k]].Dom[posi]){
+                    delete(&Dom[orden[k]], posi);
                 };
+                }
+                
             }
-            if (Dom[k].cantidad == 0){
+            if (Dom[orden[k]].cantidad == 0){
                 empty_dom=1;
+                break;
             }
         }
         if (empty_dom == 1){
-            reset_domains(Dom, E, i, c);
+            printf("Reset \n");
+            reset_domains(M_Conflic,Dom,E, i, orden, select);
         }
         else{
             return select;
@@ -197,6 +250,138 @@ int SelectValueFC(int i, int E, struct Dominios* Dom, int** M_Conflic, int c){
     return 0;
 }
 
+
+
+int* ForwardChecking (int *sol,int** M_Confl, struct Dominios* Dom, int* orden, int E, int c){
+    int x_i;
+    int i=0;
+    int check=0;
+    while(i<E){
+        x_i = SelectValueFC(orden[i], E, Dom, M_Confl, c, orden, &check);
+        if (x_i==0){      //no encontró valor, debo retroceder
+            printf("Fallé \n");
+            if(i==0){
+                break;
+            }
+            i--;
+            //reset_domains(M_Confl, Dom, E, i, orden, x)
+        }
+        else{
+            sol[orden[i]]= x_i;
+            i++;
+        }
+    }
+    printf("Con %d Timeslots se realizaron %d chequeos \n",c,check);
+    if (i==0){
+        printf("hola\n");
+        sol[0]=0;
+        return sol;
+    }
+    else{
+        return sol;
+    }
+
+    
+}
+
+void intercambiar(int *a, int *b) {
+  int temporal = *a;
+  *a = *b;
+  *b = temporal;
+}
+
+
+int particion(int arreglo[], int arreglo2[], int izquierda, int derecha) {
+  int pivote = arreglo[izquierda];
+  while (1) {
+    while (arreglo[izquierda] < pivote) {
+      izquierda++;
+    }
+    while (arreglo[derecha] > pivote) {
+      derecha--;
+    }
+    if (izquierda >= derecha) {
+      return derecha;
+    } else {
+      intercambiar(&arreglo[izquierda], &arreglo[derecha]);
+      intercambiar(&arreglo2[izquierda], &arreglo2[derecha]);
+      izquierda++;
+      derecha--;
+    }
+    
+  }
+}
+
+void quicksort(int arreglo[], int arreglo2[], int izquierda, int derecha) {
+  if (izquierda < derecha) {
+    int indiceParticion = particion(arreglo, arreglo2, izquierda, derecha);
+    quicksort(arreglo, arreglo2, izquierda, indiceParticion);
+    quicksort(arreglo, arreglo2, indiceParticion + 1, derecha);
+  }
+}
+
+
+int* orden(int **Matriz_C, int E){
+    int* orden = (int*) malloc(E*sizeof(int));
+    int cant_choques[E];
+    int choques;
+    for (int i =0; i<E; i++){
+        choques =0;
+        for (int j=0; j<E; j++){
+            if(Matriz_C[i][j]==1){
+                choques++;
+            }
+        }
+        orden[i] = i;
+        cant_choques[i]=choques;
+    }
+    quicksort(cant_choques, orden,0,E-1);
+    return orden;
+
+}
+
+
+void write_solution(int*sol, char file[],int E){
+    char buffer [100];
+    strcpy(buffer, file);
+    strcat(buffer, ".sol");
+    FILE * fp;
+    char str1 [100] = "instancias/resultados/" ; 
+    strcat(str1, buffer);
+    fp = fopen(str1, "wt");
+    if (fp==NULL){
+        fputs("FILE error \n", stderr);
+        exit(1);
+    }
+    for(int i=0; i<E; i++){
+        fprintf(fp,"%d %d \n",i+1, sol[i]);
+
+    }
+    fclose(fp);
+
+}
+
+void write_timeslots(int c, char file[]){
+    char buffer [100];
+    strcpy(buffer, file);
+    strcat(buffer, ".res");
+    FILE * fp;
+    char str1 [100] = "instancias/resultados/" ; 
+    strcat(str1, buffer);
+    fp = fopen(str1, "wt");
+    if (fp==NULL){
+        fputs("FILE error \n", stderr);
+        exit(1);
+    }
+    fprintf(fp,"%d \n",c);
+
+    fclose(fp);
+
+}
+
+
+
+
 int main (){
     char name_Archivo [20];
     printf("Ingrese el nombre del archivo de prueba (debe encontrarse en la carpeta instances): ");
@@ -204,22 +389,32 @@ int main (){
     int a; 
     int E= leer_examenes(name_Archivo);
     int **C = crear_matriz(E, name_Archivo, &a);
+    imprimir_matriz(C, E);
     int b = E;
     int c;
-    struct Dominios *Dominios = Gen_Dom(5,10);
-    pop(&Dominios[0], 0);
-    leer_dominios(Dominios, 5, 10);
-    int orden;
-    /*while (a != b){
+    int* o1= orden(C, E);
+    int *sol = inicializar_sol(E);
+    int fin[E];
+    while (a != b){
         c = floor((a+b)/2);
-        int **Dominios = Gen_Dom(c,E);
-        int* sol = FC(C, Dominios, orden);
-        if (sizeof(sol) != 0){
+        printf("a:%d \tb: %d \tc: %d\n",a,b,c);
+        struct Dominios *Dominios = Gen_Dom(c,E);
+        sol = ForwardChecking(sol, C, Dominios, o1,E,c);
+        if (sol[0] !=0){
             b = c-1;
+            for (int aux=0; aux<E; aux++){
+                fin[aux]=sol[aux];
+            }
         }else{
+            free(sol);
             a = c+1;
+            sol = inicializar_sol(E);
         }
-    }*/
-    free_memory(C, Dominios, E);
+        
+        
+    }
+    write_solution(fin, name_Archivo,E);
+    write_timeslots(a, name_Archivo);
+    
     return 0 ; 
 }
