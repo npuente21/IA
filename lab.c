@@ -11,13 +11,35 @@ struct Dominios
 }Dominio;
 
 
-void imprimir_matriz(int** M, int E){
+void leer_matriz(int** M, int E){
     for(int i=0; i<E; i++){
         for(int j=0; j<E; j++){
             printf("%d\t",M[i][j]);
         }
         printf("\n");
     }
+}
+
+
+void imprimir_matriz(int** M, int E){
+    char buffer [100];
+    strcpy(buffer, "Matriz");
+    strcat(buffer, ".txt");
+    FILE * fp;
+    char str1 [100] = "instancias/resultados/" ; 
+    strcat(str1, buffer);
+    fp = fopen(str1, "wt");
+    if (fp==NULL){
+        fputs("FILE error \n", stderr);
+        exit(1);
+    }
+    for(int i=0; i<E; i++){
+        for(int j=0; j<E; j++){
+            fprintf(fp,"%d\t",M[i][j]);
+        }
+        fprintf(fp,"\n");
+    }
+    fclose(fp);
 }
 
 
@@ -171,14 +193,18 @@ struct Dominios* Gen_Dom(int cant_timeslots, int cant_examenes){
 void reset_domains(int** Matriz_c,struct Dominios* D, int E, int i, int* orden, int del){
     for(int k = i+1; k <E; k++){
         if(Matriz_c[orden[i]][orden[k]]==1){
-            for (int j =D[orden[i]].cantidad-1; del-1<j; j--){
-                D[orden[k]].Dom[j+1]=D[orden[k]].Dom[j];
-            
-        }
-        D[orden[k]].cantidad++;
+            D[orden[k]].Dom[D[orden[k]].cantidad]=del;
+            D[orden[k]].cantidad++;
         }
         
     }
+}
+
+void insert_value(struct Dominios* D, int pos, int insert){
+    D[pos].Dom[D[pos].cantidad]=insert;
+    D[pos].cantidad++;
+
+
 }
 
 int* inicializar_sol(int E){
@@ -220,8 +246,9 @@ void free_memory(int **C, struct Dominios* D, int E){
 int SelectValueFC(int i, int E, struct Dominios* Dom, int** M_Conflic, int c, int* orden, int* check){
     int select=0;
     int empty_dom;
-    while(Dom[i].cantidad != 0){
-        select = pop(&Dom[i], 0);
+    while(Dom[orden[i]].cantidad != 0){
+        select = pop(&Dom[orden[i]], 0);
+        //printf("Para %d se elige %d \n", orden[i]+1,select);
         empty_dom =0;                   // boolean 0 == False
         for (int k = i+1; k < E; k++){
             for(int posi=0; posi<Dom[orden[k]].cantidad; posi++){
@@ -239,14 +266,16 @@ int SelectValueFC(int i, int E, struct Dominios* Dom, int** M_Conflic, int c, in
             }
         }
         if (empty_dom == 1){
-            printf("Reset \n");
+            
             reset_domains(M_Conflic,Dom,E, i, orden, select);
+            
         }
         else{
             return select;
         }
         
     }
+    insert_value(Dom, orden[i], select);
     return 0;
 }
 
@@ -257,14 +286,17 @@ int* ForwardChecking (int *sol,int** M_Confl, struct Dominios* Dom, int* orden, 
     int i=0;
     int check=0;
     while(i<E){
-        x_i = SelectValueFC(orden[i], E, Dom, M_Confl, c, orden, &check);
+
+        x_i = SelectValueFC(i, E, Dom, M_Confl, c, orden, &check);
         if (x_i==0){      //no encontró valor, debo retroceder
-            printf("Fallé \n");
+            
             if(i==0){
                 break;
             }
             i--;
-            //reset_domains(M_Confl, Dom, E, i, orden, x)
+            //printf("pos %d val: %d\n",i, sol[orden[i]]);
+            reset_domains(M_Confl, Dom, E, i, orden, sol[orden[i]]);
+            
         }
         else{
             sol[orden[i]]= x_i;
@@ -273,7 +305,6 @@ int* ForwardChecking (int *sol,int** M_Confl, struct Dominios* Dom, int* orden, 
     }
     printf("Con %d Timeslots se realizaron %d chequeos \n",c,check);
     if (i==0){
-        printf("hola\n");
         sol[0]=0;
         return sol;
     }
@@ -389,13 +420,18 @@ int main (){
     int a; 
     int E= leer_examenes(name_Archivo);
     int **C = crear_matriz(E, name_Archivo, &a);
-    imprimir_matriz(C, E);
+    printf("%d \n", C[189][191]);
+    imprimir_matriz(C,E);
     int b = E;
     int c;
     int* o1= orden(C, E);
     int *sol = inicializar_sol(E);
     int fin[E];
-    while (a != b){
+    int ciclo = 0;
+    while (ciclo != 1){
+        if(a==b){
+            ciclo=1;
+        }
         c = floor((a+b)/2);
         printf("a:%d \tb: %d \tc: %d\n",a,b,c);
         struct Dominios *Dominios = Gen_Dom(c,E);
@@ -405,7 +441,11 @@ int main (){
             for (int aux=0; aux<E; aux++){
                 fin[aux]=sol[aux];
             }
+            char snum [20];
+            sprintf(snum, "%d", c);
+            write_solution(fin,snum,E);
         }else{
+            printf("No hay solucion con %d Timeslots \n", c);
             free(sol);
             a = c+1;
             sol = inicializar_sol(E);
