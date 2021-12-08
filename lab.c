@@ -420,8 +420,6 @@ int main (){
     int a; 
     int E= leer_examenes(name_Archivo);
     int **C = crear_matriz(E, name_Archivo, &a);
-    printf("%d \n", C[189][191]);
-    imprimir_matriz(C,E);
     int b = E;
     int c;
     int* o1= orden(C, E);
