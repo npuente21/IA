@@ -20,6 +20,7 @@ void leer_matriz(int** M, int E){
         printf("\n");
     }
 }
+
 int leer_examenes(char file []){  //lee los archivos .exm
     int n = 0;
     char buffer [100];
@@ -149,16 +150,27 @@ struct Dominios* Gen_Dom(int cant_timeslots, int cant_examenes){
     return Dom;
 }
 
-struct Dominios* Copy_Dom(int c, int E, struct Dominios* Dom){
+struct Dominios* Copy_Dom(int i,int c, int E, struct Dominios* Dom){
     struct Dominios* D = (struct Dominios*) calloc(E, sizeof(Dominio));
-    for (int i = 0; i<E; i++){
-        D[i].Dom = (int*) calloc(c, sizeof(int*));
+    for (int j = 0; j<E; j++){
+        D[j].Dom = (int*) calloc(c, sizeof(int*));
         for (int n=0; n<c; n++){
-            D[i].Dom[n]=Dom[i].Dom[n];
+            D[j].Dom[n]=Dom[j].Dom[n];
         }
-        D[i].cantidad=Dom[i].cantidad;
+        D[j].cantidad=Dom[j].cantidad;
     }
     return D;
+}
+
+int Check_error(int E, struct Dominios* Dom, int i){
+    int bin=0;
+    for (int j=0;j<E;j++){
+        if(Dom[j].cantidad==0){
+            bin=1;
+            break;
+        }
+    }
+    return bin;
 }
 
 void reset_domains(int** Matriz_c,struct Dominios* D, int E, int i, int* orden, int del){
@@ -210,11 +222,12 @@ void free_Dom(struct Dominios* D, int E){
     free(D);
 }
 
-int SelectValueFC(int i, int E, struct Dominios* Dom, int** M_Conflic, int c, int* orden, int* check){
+int SelectValueFC(int i, int E, struct Dominios* Dom, int** M_Conflic, int c, int* orden, unsigned int* check){
     int select=0;
     int empty_dom;
     while(Dom[orden[i]].cantidad != 0){
-        struct Dominios* Copy_1 = Copy_Dom(c, E, Dom);
+        struct Dominios* Copy_1 = Copy_Dom(i,c, E, Dom);
+        
         select = pop(&Dom[orden[i]], 0);
         
         empty_dom =0;                   // boolean 0 == False
@@ -223,7 +236,7 @@ int SelectValueFC(int i, int E, struct Dominios* Dom, int** M_Conflic, int c, in
                 for(int posi=0; posi<Dom[orden[k]].cantidad; posi++){
                     *check=*check+1;                      //si es así se van a checkquear
                     if (select == Dom[orden[k]].Dom[posi]){
-                    delete(&Dom[orden[k]], posi);
+                        delete(&Dom[orden[k]], posi);
                     };
                 }
                 
@@ -255,40 +268,57 @@ int SelectValueFC(int i, int E, struct Dominios* Dom, int** M_Conflic, int c, in
 }
 
 int* ForwardChecking (int *sol,int** M_Confl, struct Dominios* Dom, int* orden, int E, int c){
+    clock_t begin = clock(); 
     int x_i;
     int i=0;
-    int check=0;    //contador de la cantidad de chequeos realizados
+    unsigned int check=0;    //contador de la cantidad de chequeos realizados
     struct Dominios* Copy[E];
     for(int f=0; f<E;f++){
         Copy[E]=0;
     }
-    while( i>=0 && i<E){
-        Copy[orden[i]] = Copy_Dom(c, E, Dom);
+    while(i<E && i>=0){
+        
+        clock_t end = clock();
+        double time_spent = (double)(end - begin) / CLOCKS_PER_SEC; 
+        if(time_spent/60 >2){
+            i=-1;
+            break;
+        }
+        Copy[i] = Copy_Dom(i,c, E, Dom);
+        
         x_i = SelectValueFC(i, E, Dom, M_Confl, c, orden, &check);
-        
-        
-        
+       
+       
+       //write_DOM(Dom,E,x_i,i, 0); 
         if (x_i==0){      //estamos en un fallo, por lo que es necesario retroceder
             sol[orden[i]]= x_i;
-            i--;        //se retrocede a la variable anterior
-            
-            if(i>=0){   //se restablecen los dominios a como estaban antes de instanciar la variable x_i  
-                for(int f =i+1; f<E; f++){
-                    Dom[orden[f]].cantidad=Copy[orden[i]][orden[f]].cantidad;
-                for (int e=0; e<Copy[orden[i]][orden[f]].cantidad; e++){
-                    Dom[orden[f]].Dom[e]=Copy[orden[i]][orden[f]].Dom[e];
-                }
-                
-            }
-            free_Dom(Copy[orden[i]],E);
-            Copy[orden[i]]=0;
-
-            }
-            else{
+          
+            i--;       //se rZZetrocede a la variable anterior
+            if(i<0){
                 break;
             }
+            int j=i;
+            while(M_Confl[orden[i]][orden[j]]!=1){
+                j--;
+                if(j<0){
+                    j=i;
+                    break;
+                }
+            }
+            i=j;
             
             
+            for(int f =i+1; f<E; f++){                       //se restablecen los dominios a como estaban antes de instanciar la variable x_i  
+                    for (int e=0; e<Copy[i][orden[f]].cantidad; e++){
+                        Dom[orden[f]].Dom[e]=Copy[i][orden[f]].Dom[e];
+                        }
+                    Dom[orden[f]].cantidad=Copy[i][orden[f]].cantidad;
+            }
+           ;
+           free_Dom(Copy[i],E);
+            
+            
+         
         }
         else{
             sol[orden[i]]= x_i;
@@ -298,8 +328,10 @@ int* ForwardChecking (int *sol,int** M_Confl, struct Dominios* Dom, int* orden, 
     }
     
     printf("Con %d Timeslots se realizaron %d chequeos \n",c,check);
+    
     if (i<=0){      //no se pudo encontrar una solución factible.
         sol[0]=0;  //se modifica la solucion dando a entender que no se encontró una solucion factible
+            
         return sol;
     }
     else{
@@ -509,24 +541,22 @@ int penalizacion(int*solucion, int E, char file[]){
     return pen_prom;
 }
 
-/*void write_DOM(struct Dominios* D, int E, int elecc, int var, int el){
-    char buffer [100];
+void write_DOM(struct Dominios* D, int E, int elecc, int var, int el){
     FILE * fp;
     fp = fopen("instancias/resultados/Dom.dom", "a+");
     if (fp==NULL){
         fputs("FILE error \n", stderr);
         exit(1);
     }
-    fprintf(fp,"Para la variable %d se eligió %d \n", var, elecc);
+    fprintf(fp,"Para la variable %d se eligió %d \n", var+1, elecc);
     if(el ==1){
-        fprintf(fp,"Hora de retroceder \n");
+        fprintf(fp,"post select value \n");
     }
     if(el ==2){
         fprintf(fp,"Post Reseteo \n");
     }
     if (el==3){
         fprintf(fp, "SOLUCIONAO \n");
-        return 0;
     }
     for(int i=0; i<E; i++){
         fprintf(fp,"Para la variable %d \n", i+1);
@@ -540,7 +570,7 @@ int penalizacion(int*solucion, int E, char file[]){
     fclose(fp);
 
 }
-*/
+
 
 int main (){  
     clock_t begin = clock(); 
@@ -553,44 +583,53 @@ int main (){
     int **C = crear_matriz(E, name_Archivo, &a);    //matriz de conflictos
     int b = E;                                      //máximo valor posible dentro del intervalo de búsqueda
     int c;
-    int* o1= orden_comun(C, E);                     //orden de instanciación de las variables
+    int* o1;
     int *sol = inicializar_sol(E);                  
     int fin[E];                                     //solucion final, con la menor cantidad de time slots utilizados    
     int ciclo = 0;                                  //binario para detener el while
     int p;                                          //penalizacion promedio de la solucion
- 
+    int d=1; 
+    printf("1. Orden secuencial de las variables \n2. Orden del examen más instanciado primero \n");
+    printf("Ingrese su elección:");
+    scanf("%d", &d);
+        
+    if(d==1){
+        o1= orden_comun(C, E);                     //orden de instanciación de las variables
+    }
+    if(d==2){
+        o1= orden(C, E);                     //orden de instanciación de las variables
+    }
+
     while (ciclo != 1){                             
         if(a==b){                                   //encontraron el último número a comparar
             ciclo=1;
         }
         c = floor((a+b)/2);                         //cantidadd de timeslot a utilizar
+        printf("------------------------------------------------------------------------ \n");
         printf("a:%d \tb: %d \tc: %d \n",a,b,c);
 
         struct Dominios *Dominios = Gen_Dom(c,E);     //se generan los dominios con la cantidad de timeslots previamente calculada
-        printf("Dominios check \n");
+
         sol = ForwardChecking(sol, C, Dominios, o1,E,c);      //se realiza el FC
         free(Dominios);
 
         if (sol[0] !=0){            //el FC encontró una solución factible
             b = c-1;                //se descartan todos los números mayores a la cantidad de time slots utilizada
-            if(b<a){             
-                b=a;
-            }
-            for (int aux=0; aux<E; aux++){      //se copia la solucion obtenida a la solucion final
-                fin[aux]=sol[aux];
-            }
-            
+        if(b<a){             
+            b=a;
+        }
+        for (int aux=0; aux<E; aux++){      //se copia la solucion obtenida a la solucion final
+            fin[aux]=sol[aux];
+        }
+
         }else{
             printf("No hay solucion con %d Timeslots \n", c);
             free(sol);
             a = c+1;          //al no encontrar solucion se descartan todos los números menores a la cantidad de time slots utilizada
             sol = inicializar_sol(E);
         }
-        
-       
-        
-    }
 
+    }   
 
     p = penalizacion(fin, E, name_Archivo);
     write_solution(fin, name_Archivo,E);
@@ -598,7 +637,7 @@ int main (){
     write_penalizacion(p, name_Archivo);
     clock_t end = clock();
     double time_spent = (double)(end - begin) / CLOCKS_PER_SEC; 
-    printf("tiempo de ejecución: %f  [min]\n",time_spent/60);
+    printf("tiempo de ejecución: %f  [s]\n",time_spent);
     
     return 0 ; 
 }
